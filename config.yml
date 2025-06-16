@@ -1,0 +1,6 @@
+#Input
+Glider_data_input : "C:/Users/flapet/OneDrive - NOC/Documents/IDAPro/lib/db_building/data/glider/nc_profiled/"
+CTD_folder : "C:/Users/flapet/OneDrive - NOC/Documents/IDAPro/lib/db_building/data/CTD"
+
+#Output
+Output_folder :
