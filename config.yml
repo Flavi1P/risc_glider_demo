@@ -4,3 +4,21 @@ CTD_folder : "C:/Users/flapet/OneDrive - NOC/Documents/IDAPro/lib/db_building/da
 
 #Output
 Output_folder :
+
+#Intercalibration arguments
+glider_reference : "Cabot"
+
+align_first : true
+
+r2_criteria : 
+  r2_temp : 0.95
+  r2_salinity : 0.9
+  r2_chla : 0.9
+  r2_bbp : 0.9
+  r2_doxy : 0.9
+
+dist_thresh_km : 20
+time_thresh_hr : 12
+
+
+
