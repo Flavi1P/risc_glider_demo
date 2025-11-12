@@ -145,3 +145,97 @@ def find_candidate_profile_pairs(df1, df2,
             matches.append(match)
 
     return pd.DataFrame(matches)
+
+def interpolate_over_time(ds, var_name, method='linear'):
+    import numpy as np
+    import xarray as xr
+    from scipy import interpolate
+    """
+    Interpolate missing values for any specified variable over a given dimension.
+
+    Parameters
+    ----------
+    ds : xarray.Dataset
+        Dataset containing the variable to interpolate.
+    var_name : str
+        Name of the variable to interpolate (e.g., 'DEPTH', 'TEMP', 'BBP700').
+    dim_name : str, optional
+        Name of the dimension or coordinate to interpolate along (default: 'TIME').
+    method : str, optional
+        Interpolation method: 'linear', 'nearest', etc. (default: 'linear').
+
+    Returns
+    -------
+    ds : xarray.Dataset
+        Dataset with an added variable named <var_name>_INTERP.
+    """
+
+    if var_name not in ds.variables:
+        raise ValueError(f"Variable '{var_name}' not found in dataset")
+
+
+
+    var = ds[var_name].values.copy()
+    coord = ds["TIME"].values
+
+    # Convert datetime coordinates to numeric (seconds since start)
+    if np.issubdtype(coord.dtype, np.datetime64):
+        coord_seconds = (coord - coord[0]) / np.timedelta64(1, "s")
+    else:
+        coord_seconds = coord
+
+    n_total = len(var)
+    n_valid = np.sum(np.isfinite(var))
+    n_missing = n_total - n_valid
+
+    print(f"\nInterpolating variable: {var_name}")
+    print(f"  Total points: {n_total}")
+    print(f"  Valid: {n_valid} ({100 * n_valid / n_total:.1f}%)")
+    print(f"  Missing: {n_missing} ({100 * n_missing / n_total:.1f}%)")
+
+    if n_missing == 0:
+        print("  No interpolation needed — all values are valid.")
+        ds[f"{var_name}_INTERP"] = ds[var_name].copy()
+        return ds
+
+    if n_valid < 2:
+        print("  ERROR: Need at least 2 valid points for interpolation.")
+        return ds
+
+    valid_mask = np.isfinite(var) & np.isfinite(coord_seconds)
+    if np.sum(valid_mask) < 2:
+        print("  ERROR: Need at least 2 valid coordinate-value pairs.")
+        return ds
+
+    # Build interpolator
+    f_interp = interpolate.interp1d(
+        coord_seconds[valid_mask],
+        var[valid_mask],
+        kind=method,
+        bounds_error=False,
+        fill_value="extrapolate",
+    )
+
+    var_interp = f_interp(coord_seconds)
+
+    # Prevent extrapolation beyond valid range
+    first_valid = np.where(valid_mask)[0][0]
+    last_valid = np.where(valid_mask)[0][-1]
+    var_interp[:first_valid] = np.nan
+    var_interp[last_valid + 1 :] = np.nan
+
+    # Add new variable to dataset
+    ds[f"{var_name}_INTERP"] = xr.DataArray(
+        var_interp,
+        dims=ds[var_name].dims,
+        coords=ds[var_name].coords,
+        attrs=ds[var_name].attrs.copy(),
+    )
+    ds[f"{var_name}_INTERP"].attrs["comment"] = (
+        f"Interpolated {var_name} along TIME (method={method})"
+    )
+
+    n_filled = np.sum(np.isfinite(var_interp)) - n_valid
+    print(f"  Filled {n_filled} missing values by interpolation.")
+
+    return ds
